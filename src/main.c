@@ -10,6 +10,8 @@
 #include "esp_netif.h"
 #include "esp_netif_ip_addr.h"
 #include "driver/uart.h"
+#include "lwip/sockets.h"
+#include "lwip/inet.h"
 
 #include "config.h"
 
@@ -144,10 +146,80 @@ bool test_uart_loopback(void)
     return passed;
 }
 
+void ntouart_task(void *arg)
+{
+    char rx_buf[UDP_BUFFER_SIZE];
+    struct sockaddr_in listen_addr = {
+        .sin_family = AF_INET,
+        .sin_port = htons(UDP_LISTEN_PORT),
+        .sin_addr.s_addr = htonl(INADDR_ANY),
+    };
+
+    int sock = socket(AF_INET, SOCK_DGRAM, IPPROTO_IP);
+    if (sock < 0) {
+        ESP_LOGE("NTOUART", "Unable to create socket");
+        vTaskDelete(NULL);
+    }
+
+    if (bind(sock, (struct sockaddr *)&listen_addr, sizeof(listen_addr)) < 0) {
+        ESP_LOGE("NTOUART", "Socket bind failed");
+        close(sock);
+        vTaskDelete(NULL);
+    }
+
+    ESP_LOGI("NTOUART", "Listening for UDP packets on port %d", UDP_LISTEN_PORT);
+
+    while (1) {
+        struct sockaddr_in source_addr;
+        socklen_t socklen = sizeof(source_addr);
+        int len = recvfrom(sock, rx_buf, sizeof(rx_buf) - 1, 0,
+                           (struct sockaddr *)&source_addr, &socklen);
+
+        if (len < 0) {
+            ESP_LOGE("NTOUART", "recvfrom failed");
+            continue;
+        }
+
+        rx_buf[len] = '\0';
+
+        ESP_LOGI("NTOUART", "Received %d bytes from %s:%d: %s",
+                 len,
+                 inet_ntoa(source_addr.sin_addr),
+                 ntohs(source_addr.sin_port),
+                 rx_buf);
+    }
+
+    close(sock);
+    vTaskDelete(NULL);
+}
+
+void uartton_task(void *arg)
+{
+    uint8_t rx_buf[UART_BUF_SIZE];
+
+    ESP_LOGI("UARTTON", "Waiting for UART input...");
+
+    while (1) {
+        int len = uart_read_bytes(UART_PORT_NUM, rx_buf, sizeof(rx_buf) - 1, pdMS_TO_TICKS(1000));
+
+        if (len > 0) {
+            rx_buf[len] = '\0';
+
+            ESP_LOGI("UARTTON", "Received %d bytes from UART: %s", len, (char *)rx_buf);
+        }
+    }
+
+    vTaskDelete(NULL);
+}
+
+
 void app_main(void)
 {
     ESP_ERROR_CHECK(nvs_flash_init());
     init_wifi();
     init_uart();
     //test_uart_loopback();
+
+    xTaskCreate(ntouart_task, "ntouart_task", TASK_STACK_SIZE, NULL, TASK_PRIORITY_NTOU, NULL);
+    xTaskCreate(uartton_task, "uartton_task", TASK_STACK_SIZE, NULL, TASK_PRIORITY_UART, NULL);
 }

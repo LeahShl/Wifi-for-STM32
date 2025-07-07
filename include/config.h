@@ -8,3 +8,10 @@
 #define UART_TX_PIN        17
 #define UART_RX_PIN        16
 #define UART_BUF_SIZE      1024
+
+#define UDP_LISTEN_PORT     54321
+#define UDP_BUFFER_SIZE     1024
+
+#define TASK_STACK_SIZE     4096
+#define TASK_PRIORITY_NTOU  10
+#define TASK_PRIORITY_UART  9
