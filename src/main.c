@@ -25,6 +25,9 @@ static const char *UART_TAG = "UART";
 static int s_retry_num = 0;
 #define MAX_RETRY 5
 
+static struct sockaddr_in last_udp_sender;
+static SemaphoreHandle_t sender_mutex;
+
 static void wifi_event_handler(void* arg, esp_event_base_t event_base,
                                int32_t event_id, void* event_data)
 {
@@ -114,44 +117,12 @@ void init_uart(void)
     ESP_LOGI(UART_TAG, "UART2 initialized on TX=%d RX=%d", UART_TX_PIN, UART_RX_PIN);
 }
 
-bool test_uart_loopback(void)
-{
-    const char *test_str = "UART loopback test";
-    const size_t len = strlen(test_str);
-    uint8_t rx_buf[UART_BUF_SIZE] = {0};
-
-    uart_flush_input(UART_PORT_NUM);
-
-    int tx_bytes = uart_write_bytes(UART_PORT_NUM, test_str, len);
-    ESP_LOGI(UART_TAG, "Sent %d bytes", tx_bytes);
-
-    vTaskDelay(pdMS_TO_TICKS(100)); // ensure TX complete
-
-    int rx_bytes = uart_read_bytes(UART_PORT_NUM, rx_buf, len, pdMS_TO_TICKS(500));
-    if (rx_bytes > 0) {
-        rx_buf[rx_bytes] = '\0';
-        ESP_LOGI(UART_TAG, "Received %d bytes: '%s'", rx_bytes, (char *)rx_buf);
-    } else {
-        ESP_LOGW(UART_TAG, "No data received from UART2 RX");
-        return false;
-    }
-
-    bool passed = (rx_bytes == len) && (memcmp(test_str, rx_buf, len) == 0);
-    if (passed) {
-        ESP_LOGI(UART_TAG, "UART loopback test PASSED");
-    } else {
-        ESP_LOGE(UART_TAG, "UART loopback test FAILED");
-    }
-
-    return passed;
-}
-
 void ntouart_task(void *arg)
 {
     char rx_buf[UDP_BUFFER_SIZE];
     struct sockaddr_in listen_addr = {
         .sin_family = AF_INET,
-        .sin_port = htons(UDP_LISTEN_PORT),
+        .sin_port = htons(UDP_PORT),
         .sin_addr.s_addr = htonl(INADDR_ANY),
     };
 
@@ -167,7 +138,7 @@ void ntouart_task(void *arg)
         vTaskDelete(NULL);
     }
 
-    ESP_LOGI("NTOUART", "Listening for UDP packets on port %d", UDP_LISTEN_PORT);
+    ESP_LOGI("NTOUART", "Listening for UDP packets on port %d", UDP_PORT);
 
     while (1) {
         struct sockaddr_in source_addr;
@@ -180,8 +151,13 @@ void ntouart_task(void *arg)
             continue;
         }
 
-        rx_buf[len] = '\0';
+        xSemaphoreTake(sender_mutex, portMAX_DELAY);
+        memcpy(&last_udp_sender, &source_addr, sizeof(source_addr));
+        xSemaphoreGive(sender_mutex);
 
+        uart_write_bytes(UART_PORT_NUM, rx_buf, len);
+
+        rx_buf[len] = '\0';
         ESP_LOGI("NTOUART", "Received %d bytes from %s:%d: %s",
                  len,
                  inet_ntoa(source_addr.sin_addr),
@@ -197,18 +173,33 @@ void uartton_task(void *arg)
 {
     uint8_t rx_buf[UART_BUF_SIZE];
 
+    int sock = socket(AF_INET, SOCK_DGRAM, IPPROTO_IP);
+    if (sock < 0) {
+        ESP_LOGE("UARTTON", "Failed to create socket");
+        vTaskDelete(NULL);
+    }
+
     ESP_LOGI("UARTTON", "Waiting for UART input...");
 
     while (1) {
         int len = uart_read_bytes(UART_PORT_NUM, rx_buf, sizeof(rx_buf) - 1, pdMS_TO_TICKS(1000));
 
         if (len > 0) {
-            rx_buf[len] = '\0';
+            struct sockaddr_in dest;
+            xSemaphoreTake(sender_mutex, portMAX_DELAY);
+            memcpy(&dest, &last_udp_sender, sizeof(dest));
+            xSemaphoreGive(sender_mutex);
 
+            rx_buf[len] = '\0';
             ESP_LOGI("UARTTON", "Received %d bytes from UART: %s", len, (char *)rx_buf);
+
+            int sent = sendto(sock, rx_buf, len, 0, (struct sockaddr *)&dest, sizeof(dest));
+            ESP_LOGI("UARTTON", "Forwarded %d bytes from UART to %s:%d",
+                     sent, UDP_SOURCE_IP, UDP_PORT);
         }
     }
 
+    close(sock);
     vTaskDelete(NULL);
 }
 
@@ -218,7 +209,12 @@ void app_main(void)
     ESP_ERROR_CHECK(nvs_flash_init());
     init_wifi();
     init_uart();
-    //test_uart_loopback();
+
+    sender_mutex = xSemaphoreCreateMutex();
+    if (sender_mutex == NULL) {
+        ESP_LOGE("MAIN", "Failed to create sender_mutex!");
+        abort();
+    }
 
     xTaskCreate(ntouart_task, "ntouart_task", TASK_STACK_SIZE, NULL, TASK_PRIORITY_NTOU, NULL);
     xTaskCreate(uartton_task, "uartton_task", TASK_STACK_SIZE, NULL, TASK_PRIORITY_UART, NULL);

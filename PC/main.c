@@ -44,7 +44,7 @@
 #define UUT_ADDR "192.168.1.177"    // IP address of Unit Under Test (UUT)
 #define PORT 54321                 // Port for UDP communication
 #define BUFSIZE 263                // Max possible size of OutMsg
-#define IN_MSG_SIZE 8              // Incoming msg is always 8 bytes
+#define IN_MSG_SIZE 6              // Incoming msg is always 6 bytes
 
 #define TEST_UART 2                // UART test code
 #define TEST_SPI 4                 // SPI test code
@@ -633,6 +633,7 @@ static void udp_receive_data(struct InMsg *in_msg)
 	if (bytes_read != IN_MSG_SIZE)
 	{
 		perror("udp_receive_data: incomplete transaction");
+        printf("Expected %d bytes, got %d\n", IN_MSG_SIZE, bytes_read);
 		exit(UDP_ERROR);
 	}
 
