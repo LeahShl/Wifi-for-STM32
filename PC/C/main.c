@@ -41,7 +41,7 @@
  * MACROS                *
  *************************/
 
-#define UUT_ADDR "192.168.1.177"    // IP address of Unit Under Test (UUT)
+#define UUT_ADDR "192.168.1.177"   // IP address of Unit Under Test (UUT)
 #define PORT 54321                 // Port for UDP communication
 #define BUFSIZE 263                // Max possible size of OutMsg
 #define IN_MSG_SIZE 6              // Incoming msg is always 6 bytes
