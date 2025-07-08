@@ -9,6 +9,9 @@
 #define UART_RX_PIN        16
 #define UART_BUF_SIZE      1024
 
+#define START_BYTE         0xAA
+#define END_BYTE           0x55
+
 #define UDP_SOURCE_IP       "192.168.1.71"
 #define UDP_PORT            54321
 #define UDP_BUFFER_SIZE     1024

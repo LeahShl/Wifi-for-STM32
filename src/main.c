@@ -172,6 +172,9 @@ void ntouart_task(void *arg)
 void uartton_task(void *arg)
 {
     uint8_t rx_buf[UART_BUF_SIZE];
+    uint8_t byte;
+    int packet_len = 0;
+    bool in_packet = false;
 
     int sock = socket(AF_INET, SOCK_DGRAM, IPPROTO_IP);
     if (sock < 0) {
@@ -181,21 +184,50 @@ void uartton_task(void *arg)
 
     ESP_LOGI("UARTTON", "Waiting for UART input...");
 
-    while (1) {
-        int len = uart_read_bytes(UART_PORT_NUM, rx_buf, sizeof(rx_buf) - 1, pdMS_TO_TICKS(1000));
+    while (1)
+    {
+        int len = uart_read_bytes(UART_PORT_NUM, &byte, 1, pdMS_TO_TICKS(10));
 
-        if (len > 0) {
-            struct sockaddr_in dest;
-            xSemaphoreTake(sender_mutex, portMAX_DELAY);
-            memcpy(&dest, &last_udp_sender, sizeof(dest));
-            xSemaphoreGive(sender_mutex);
+        if (len > 0)
+        {
+            if (!in_packet)
+            {
+                if (byte == START_BYTE)
+                {
+                    packet_len = 0;
+                    in_packet = true;
+                }
+            }
+            else
+            {
+                if (byte == END_BYTE)
+                {
+                    struct sockaddr_in dest;
+                    xSemaphoreTake(sender_mutex, portMAX_DELAY);
+                    memcpy(&dest, &last_udp_sender, sizeof(dest));
+                    xSemaphoreGive(sender_mutex);
 
-            rx_buf[len] = '\0';
-            ESP_LOGI("UARTTON", "Received %d bytes from UART: %s", len, (char *)rx_buf);
+                    int sent = sendto(sock, rx_buf, packet_len, 0, (struct sockaddr *)&dest, sizeof(dest));
+                    ESP_LOGI("UARTTON", "Forwarded %d bytes from UART to %s:%d",
+                             sent, UDP_SOURCE_IP, UDP_PORT);
 
-            int sent = sendto(sock, rx_buf, len, 0, (struct sockaddr *)&dest, sizeof(dest));
-            ESP_LOGI("UARTTON", "Forwarded %d bytes from UART to %s:%d",
-                     sent, UDP_SOURCE_IP, UDP_PORT);
+                    in_packet = false;
+                    packet_len = 0;
+                }
+                else
+                {
+                    if (packet_len < UART_BUF_SIZE)
+                    {
+                        rx_buf[packet_len++] = byte;
+                    }
+                    else
+                    {
+                        ESP_LOGE("UARTTON", "Packet too long: %d bytes. Dropping.", packet_len);
+                        in_packet = false;
+                        packet_len = 0;
+                    }
+                }
+            }
         }
     }
 
