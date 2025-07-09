@@ -33,16 +33,20 @@ int main(int argc, char* argv[])
             return ARGS_ERROR;
         }
 
-        if (!logger.prep())
+        try
         {
-            std::cerr << "Database prep failed\n";
+            logger.prep();
+        }
+        catch(const std::exception& e)
+        {
+            std::cerr << e.what() << '\n';
             return DB_ERROR;
         }
 
         for (int i = 2; i < argc; ++i)
         {
             uint32_t id = std::stoul(argv[i]);
-            std::cout << logger.strById(id);
+            std::cout << logger.strById(id) << "\n";
         }
         return 0;
 
@@ -55,9 +59,13 @@ int main(int argc, char* argv[])
             return ARGS_ERROR;
         }
 
-        if (!logger.prep())
+        try
         {
-            std::cerr << "Database prep failed\n";
+            logger.prep();
+        }
+        catch(const std::exception& e)
+        {
+            std::cerr << e.what() << '\n';
             return DB_ERROR;
         }
 
@@ -171,12 +179,6 @@ int main(int argc, char* argv[])
             return NETWORK_ERROR;
         }
 
-        if (!logger.prep())
-        {
-            std::cerr << "Database prep failed\n";
-            return DB_ERROR;
-        }
-
         uint8_t flags = 0;
         std::string shared;
 
@@ -190,7 +192,7 @@ int main(int argc, char* argv[])
         else if (want_i) shared = msg_i;
 
         tester.runTests(flags, n_iter, shared);
-        std::cout << tester.strLast();
+        std::cout << tester.strLast() << "\n";
 
         return EXIT_SUCCESS;
     }

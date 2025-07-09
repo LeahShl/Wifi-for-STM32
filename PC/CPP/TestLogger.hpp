@@ -1,6 +1,8 @@
 #pragma once
 
 #include <string>
+#include <sqlite3.h>
+#include <mutex>
 
 class TestLogger
 {
@@ -8,9 +10,13 @@ public:
     TestLogger();
     ~TestLogger();
 
-    bool prep();
+    void prep();
     std::string strById(uint32_t id);
     std::string exportAll();
     uint32_t getNextId();
-    bool logTest(uint32_t id, const char* timestamp, double duration, bool success);
+    void logTest(uint32_t test_id, const char *timestamp, double duration_sec, bool result);
+
+private:
+    std::string db_path;
+    std::mutex db_mutex;
 };

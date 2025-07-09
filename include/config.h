@@ -1,7 +1,7 @@
 #pragma once
 
-#define WIFI_SSID          ""
-#define WIFI_PASSWORD      ""
+#define WIFI_SSID          "Pretty fly for a WI-FI"
+#define WIFI_PASSWORD      "Koshka Mocha"
 
 #define UART_PORT_NUM      UART_NUM_2
 #define UART_BAUD_RATE     115200
