@@ -3,6 +3,10 @@
 #include <filesystem>
 #include <sstream>
 
+/**
+ * @brief Construct a new Test Logger:: Test Logger object
+ * 
+ */
 TestLogger::TestLogger()
 {
     const char *home = std::getenv("HOME");
@@ -16,6 +20,10 @@ TestLogger::TestLogger()
     db_path = tmp_path.string();
 }
 
+/**
+ * @brief Destroy the Test Logger:: Test Logger object
+ * 
+ */
 TestLogger::~TestLogger() = default;
 
 /**

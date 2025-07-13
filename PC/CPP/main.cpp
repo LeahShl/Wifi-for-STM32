@@ -8,9 +8,9 @@
 #include "HardwareTester.hpp"
 #include "TestLogger.hpp"
 
-#define ARGS_ERROR 1               // Error parsing command line arguments
+#define ARGS_ERROR 1                   // Error parsing command line arguments
 #define NETWORK_ERROR 2                // UDP communication error
-#define DB_ERROR 3             // SQLite3 database error
+#define DB_ERROR 3                     // SQLite3 database error
 
 void print_usage(const std::string& progName);
 

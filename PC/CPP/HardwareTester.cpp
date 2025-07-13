@@ -11,7 +11,7 @@
 #include "HardwareTester.hpp"
 
 
-#define UUT_ADDR "192.168.1.177"   // IP address of Unit Under Test (UUT)
+#define UUT_ADDR "192.168.1.45"    // IP address of Unit Under Test (UUT)
 #define PORT 54321                 // Port for UDP communication
 #define BUFSIZE 263                // Max possible size of OutMsg
 #define IN_MSG_SIZE 6              // Incoming msg is always 6 bytes
@@ -20,15 +20,32 @@
 #define TEST_SUCCESS 0x01          // Test success code
 #define TEST_FAILED 0xff           // Test failed code
 
+/**
+ * @brief Construct a new Hardware Tester:: Hardware Tester object
+ * 
+ */
 HardwareTester::HardwareTester() : sock(-1), logger(new TestLogger())
 {}
 
+/**
+ * @brief Destroy the Hardware Tester:: Hardware Tester object
+ * 
+ */
 HardwareTester::~HardwareTester()
 {
     if (sock != -1) close(sock);
     delete logger;
 }
 
+
+/**
+ * @brief Initializes and connects the UDP socket to the UUT (Unit Under Test).
+ *
+ * Resolves the UUT address and sets up the sockaddr_in structure.
+ *
+ * @return true if the connection setup succeeds.
+ * @return false if socket creation or host resolution fails.
+ */
 bool HardwareTester::connect()
 {
     sock = socket(AF_INET, SOCK_DGRAM, 0);
@@ -54,6 +71,16 @@ bool HardwareTester::connect()
     return true;
 }
 
+/**
+ * @brief Runs a group of hardware tests based on the selected flags.
+ *
+ * Prepares and sends an OutMsg to the UUT and waits for corresponding responses.
+ * Each peripheral test runs in a separate thread.
+ *
+ * @param flags Bitmask indicating which tests to run (UART, SPI, I2C).
+ * @param n_iter Number of iterations each test should run.
+ * @param shared Optional shared payload to send with the test request.
+ */
 void HardwareTester::runTests(uint8_t flags, uint8_t n_iter, std::string shared)
 {
     inMsgs.clear();
@@ -111,6 +138,13 @@ void HardwareTester::runTests(uint8_t flags, uint8_t n_iter, std::string shared)
     }
 }
 
+/**
+ * @brief Returns a string representation of the last test result.
+ *
+ * Queries the logger for the test result using the last test ID.
+ *
+ * @return std::string Description of the last test result or an error message.
+ */
 std::string HardwareTester::strLast()
 {
     try
@@ -126,6 +160,14 @@ std::string HardwareTester::strLast()
     return std::string("Error getting last test's result");
 }
 
+
+/**
+ * @brief Sends the prepared OutMsg structure over UDP.
+ *
+ * Serializes the `outMsg` into a byte buffer and sends it to the UUT.
+ *
+ * @throws std::runtime_error if `sendto` fails.
+ */
 void HardwareTester::sendOutMsg()
 {
     char buf[BUFSIZE];
@@ -150,6 +192,13 @@ void HardwareTester::sendOutMsg()
     }
 }
 
+/**
+ * @brief Receives a single InMsg from the UUT and stores it in the indexed slot.
+ *
+ * Waits to receive a 6-byte response and parses it into an `InMsg` structure.
+ *
+ * @param idx Index in the results/inMsgs array to store the parsed result.
+ */
 void HardwareTester::recvInMsg(int idx)
 {
     sockaddr_in from;
@@ -170,6 +219,15 @@ void HardwareTester::recvInMsg(int idx)
     results[idx] = (msg.test_result == TEST_SUCCESS);
 }
 
+/**
+ * @brief Retrieves the next available test ID from the logger.
+ *
+ * Calls `prep()` and then queries the next test ID.
+ *
+ * @param id Reference to store the result.
+ * @return true if the operation succeeded.
+ * @return false if an exception occurred.
+ */
 bool HardwareTester::getNextTestId(uint32_t &id)
 {
     try
@@ -193,12 +251,26 @@ bool HardwareTester::getNextTestId(uint32_t &id)
     return true;
 }
 
+/**
+ * @brief Formats a `timeval` into a human-readable timestamp string.
+ *
+ * @param buffer Output buffer to hold the formatted timestamp.
+ * @param size Size of the buffer.
+ * @param tv `timeval` structure to format.
+ */
 void HardwareTester::formatTimestamp(char *buffer, size_t size, const timeval &tv)
 {
     struct tm *tm_info = localtime(&tv.tv_sec);
     strftime(buffer, size, "%Y-%m-%d %H:%M:%S", tm_info);
 }
 
+/**
+ * @brief Computes the time elapsed in seconds between two timestamps.
+ *
+ * @param start Start time.
+ * @param end End time.
+ * @return double Elapsed time in seconds (with microsecond precision).
+ */
 double HardwareTester::elapsedSeconds(const timeval &start, const timeval &end)
 {
     return (end.tv_sec - start.tv_sec) + (end.tv_usec - start.tv_usec) / 1e6;
