@@ -7,4 +7,7 @@
 */*/.vscode/*
 */*/*.o
 *.o
-
+PC/CPP/HardwareTester.o
+PC/CPP/main.o
+PC/CPP/mthw_tester
+PC/CPP/TestLogger.o
